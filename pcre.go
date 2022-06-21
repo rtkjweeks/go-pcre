@@ -260,6 +260,19 @@ func (re Regexp) Groups() int {
 	return int(pcreGroups(re.ptr))
 }
 
+func (re Regexp) GroupNameToIndex(name string) (int, error) {
+	if re.ptr == nil {
+		return 0, fmt.Errorf("Matcher.Named: uninitialized")
+	}
+	name1 := C.CString(name)
+	defer C.free(unsafe.Pointer(name1))
+	group := int(C.pcre_get_stringnumber(re.ptr, name1))
+	if group < 0 {
+		return group, fmt.Errorf("Matcher.Named: unknown name: " + name)
+	}
+	return group, nil
+}
+
 // Matcher objects provide a place for storing match results.
 // They can be created by the Matcher and MatcherString functions,
 // or they can be initialized with Reset or ResetString.
@@ -547,25 +560,11 @@ func (m *Matcher) Index() (loc []int) {
 	return
 }
 
-// name2index converts a group name to its group index number.
-func (m *Matcher) name2index(name string) (int, error) {
-	if m.re.ptr == nil {
-		return 0, fmt.Errorf("Matcher.Named: uninitialized")
-	}
-	name1 := C.CString(name)
-	defer C.free(unsafe.Pointer(name1))
-	group := int(C.pcre_get_stringnumber(m.re.ptr, name1))
-	if group < 0 {
-		return group, fmt.Errorf("Matcher.Named: unknown name: " + name)
-	}
-	return group, nil
-}
-
 // Named returns the value of the named capture group.
 // This is a nil slice if the capture group is not present.
 // If the name does not refer to a group then error is non-nil.
 func (m *Matcher) Named(group string) ([]byte, error) {
-	groupNum, err := m.name2index(group)
+	groupNum, err := m.re.GroupNameToIndex(group)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -576,7 +575,7 @@ func (m *Matcher) Named(group string) ([]byte, error) {
 // or an empty string if the capture group is not present.
 // If the name does not refer to a group then error is non-nil.
 func (m *Matcher) NamedString(group string) (string, error) {
-	groupNum, err := m.name2index(group)
+	groupNum, err := m.re.GroupNameToIndex(group)
 	if err != nil {
 		return "", err
 	}
@@ -586,7 +585,7 @@ func (m *Matcher) NamedString(group string) (string, error) {
 // NamedPresent returns true if the named capture group is present.
 // If the name does not refer to a group then error is non-nil.
 func (m *Matcher) NamedPresent(group string) (bool, error) {
-	groupNum, err := m.name2index(group)
+	groupNum, err := m.re.GroupNameToIndex(group)
 	if err != nil {
 		return false, err
 	}
